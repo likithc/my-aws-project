@@ -118,10 +118,10 @@ resource "aws_ecs_task_definition" "dummy" {
 
 # Create the ECS Service (Fargate)
 resource "aws_ecs_service" "app_service" {
-  name            = "my-aws-demo-app-service"
-  cluster         = aws_ecs_cluster.app_cluster.id
-  launch_type     = "FARGATE"
-  
+  name        = "my-aws-demo-app-service"
+  cluster     = aws_ecs_cluster.app_cluster.id
+  launch_type = "FARGATE"
+
   task_definition = aws_ecs_task_definition.dummy.arn
   desired_count   = 1
 
@@ -129,4 +129,31 @@ resource "aws_ecs_service" "app_service" {
     subnets          = data.aws_subnets.default.ids
     assign_public_ip = true
   }
+}
+# ---------------------------------------------------------
+# IAM ROLE FOR ECS TASK EXECUTION
+# ---------------------------------------------------------
+
+resource "aws_iam_role" "ecs_task_execution_role" {
+  name = "ecsTaskExecutionRole"
+
+  # Trust policy: Allows ECS tasks to assume this role
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Action = "sts:AssumeRole"
+        Effect = "Allow"
+        Principal = {
+          Service = "ecs-tasks.amazonaws.com"
+        }
+      }
+    ]
+  })
+}
+
+# Attach the standard AWS managed policy for pulling ECR images and CloudWatch logs
+resource "aws_iam_role_policy_attachment" "ecs_task_execution_role_policy" {
+  role       = aws_iam_role.ecs_task_execution_role.name
+  policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy"
 }
