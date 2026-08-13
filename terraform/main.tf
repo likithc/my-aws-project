@@ -71,3 +71,62 @@ resource "aws_ecr_lifecycle_policy" "app_repo_policy" {
     ]
   })
 }
+
+# ---------------------------------------------------------
+# NEW ECS FARGATE INFRASTRUCTURE ADDED BELOW
+# ---------------------------------------------------------
+
+# Create the ECS Cluster
+resource "aws_ecs_cluster" "app_cluster" {
+  name = "my-aws-demo-app-cluster"
+}
+
+# Create a CloudWatch Log Group for your container logs
+resource "aws_cloudwatch_log_group" "app_logs" {
+  name              = "/ecs/my-aws-demo-app"
+  retention_in_days = 7
+}
+
+# Fetch default VPC and subnets (needed for Fargate network configuration)
+data "aws_vpc" "default" {
+  default = true
+}
+
+data "aws_subnets" "default" {
+  filter {
+    name   = "vpc-id"
+    values = [data.aws_vpc.default.id]
+  }
+}
+
+# A dummy task definition just to get the service created initially. 
+# GitHub Actions will overwrite this with your real image immediately after.
+resource "aws_ecs_task_definition" "dummy" {
+  family                   = "my-aws-demo-app-task"
+  network_mode             = "awsvpc"
+  requires_compatibilities = ["FARGATE"]
+  cpu                      = "256"
+  memory                   = "512"
+  container_definitions = jsonencode([
+    {
+      name      = "app"
+      image     = "nginx:latest" # Dummy image
+      essential = true
+    }
+  ])
+}
+
+# Create the ECS Service (Fargate)
+resource "aws_ecs_service" "app_service" {
+  name            = "my-aws-demo-app-service"
+  cluster         = aws_ecs_cluster.app_cluster.id
+  launch_type     = "FARGATE"
+  
+  task_definition = aws_ecs_task_definition.dummy.arn
+  desired_count   = 1
+
+  network_configuration {
+    subnets          = data.aws_subnets.default.ids
+    assign_public_ip = true
+  }
+}
