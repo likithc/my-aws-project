@@ -99,7 +99,28 @@ data "aws_subnets" "default" {
   }
 }
 
-# A dummy task definition just to get the service created initially. 
+# Security group to allow web traffic to the container
+resource "aws_security_group" "ecs_sg" {
+  name        = "my-aws-demo-app-sg"
+  description = "Allow inbound traffic on port 8080"
+  vpc_id      = data.aws_vpc.default.id
+
+  ingress {
+    from_port   = 8080
+    to_port     = 8080
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+}
+
+# A dummy task definition just to get the service created initially.
 # GitHub Actions will overwrite this with your real image immediately after.
 resource "aws_ecs_task_definition" "dummy" {
   family                   = "my-aws-demo-app-task"
@@ -127,9 +148,11 @@ resource "aws_ecs_service" "app_service" {
 
   network_configuration {
     subnets          = data.aws_subnets.default.ids
+    security_groups  = [aws_security_group.ecs_sg.id] # <--- Added this line!
     assign_public_ip = true
   }
 }
+
 # ---------------------------------------------------------
 # IAM ROLE FOR ECS TASK EXECUTION
 # ---------------------------------------------------------
